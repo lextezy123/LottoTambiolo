@@ -53,8 +53,9 @@ class BillingManager(context: Context, private val prefs: AppPrefs, private val 
                     .build()
             )
         ).build()
-        client.queryProductDetailsAsync(params) { _, list ->
-            product = list.firstOrNull()
+        // Billing Library 8+: the callback gets a QueryProductDetailsResult instead of a list.
+        client.queryProductDetailsAsync(params) { _, result ->
+            product = result.productDetailsList.firstOrNull()
             _price.value = product?.oneTimePurchaseOfferDetails?.formattedPrice
         }
     }
