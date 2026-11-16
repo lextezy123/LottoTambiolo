@@ -1,5 +1,6 @@
 package com.lextezy.tambiolo.ui.simulator
 
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
@@ -34,6 +35,9 @@ class DrumPhysics {
         private set
 
     private var carry = 0f
+    private var clock = 0f
+    private var jetPhase = 0f
+    private var swirlPhase = 0f
     private var quietSteps = 0
     private var lastCount = 0
 
@@ -52,6 +56,9 @@ class DrumPhysics {
         }
         lastCount = balls.size
         carry = 0f
+        // Every draw starts its jet and swirl at a different point, so no two mixes look alike.
+        jetPhase = Random.nextFloat() * 6.2832f
+        swirlPhase = Random.nextFloat() * 6.2832f
         wake()
     }
 
@@ -79,22 +86,37 @@ class DrumPhysics {
 
     /** One fixed step of 1/60 s. */
     fun step() {
+        clock += STEP
+        val jetX = CX + sin(clock * JET_SWEEP_RATE + jetPhase) * JET_SWEEP
+        val swirl = SWIRL * sin(clock * SWIRL_RATE + swirlPhase)
         for (b in balls) {
             if (b.flying) continue
             b.vy += 0.35f // gravity
             if (mixing > 0f) {
-                // Air blower: strong random lift only in the lower part of the drum,
-                // so balls shoot up, arc, and fall back down instead of pinning to the top.
+                // Air blower: lift only in the lower part of the drum, so balls shoot up,
+                // arc, and fall back down instead of pinning to the top. The strong jet
+                // wanders left and right, so the fountain keeps moving and balls outside
+                // it sink back into the pile.
                 val depth = (b.y - CY) / RADIUS // -1 = top, 1 = bottom
-                if (depth > 0.35f) b.vy -= mixing * (1.2f + Random.nextFloat() * 1.6f)
+                if (depth > JET_DEPTH) {
+                    val lift = if (abs(b.x - jetX) < JET_HALF_WIDTH) JET_LIFT + Random.nextFloat() * JET_LIFT_EXTRA
+                    else SIDE_LIFT + Random.nextFloat() * SIDE_LIFT_EXTRA
+                    b.vy -= mixing * lift
+                }
                 // Random jitter everywhere
                 b.vx += (Random.nextFloat() * 2f - 1f) * 1.2f * mixing
                 b.vy += (Random.nextFloat() * 2f - 1f) * 0.8f * mixing
-                // Gentle swirl around the center
+                // Gusts: now and then a ball gets knocked in a completely random direction.
+                if (Random.nextFloat() < GUST_CHANCE * mixing) {
+                    val a = Random.nextFloat() * 6.2832f
+                    val k = GUST_MIN + Random.nextFloat() * GUST_EXTRA
+                    b.vx += cos(a) * k; b.vy += sin(a) * k
+                }
+                // Swirl around the center that slowly changes strength and direction.
                 val sx = b.x - CX; val sy = b.y - CY
                 val sd = hypot(sx, sy).coerceAtLeast(1f)
-                b.vx += -sy / sd * 0.25f * mixing
-                b.vy += sx / sd * 0.25f * mixing
+                b.vx += -sy / sd * swirl * mixing
+                b.vy += sx / sd * swirl * mixing
             }
             val speed = hypot(b.vx, b.vy)
             if (speed > MAX_SPEED) { b.vx *= MAX_SPEED / speed; b.vy *= MAX_SPEED / speed }
@@ -127,7 +149,17 @@ class DrumPhysics {
                     val nx = dx / d; val ny = dy / d
                     b.x = CX + nx * lim; b.y = CY + ny * lim
                     val dot = b.vx * nx + b.vy * ny
-                    if (dot > 0) { b.vx -= 1.8f * dot * nx; b.vy -= 1.8f * dot * ny }
+                    if (dot > 0) {
+                        b.vx -= 1.8f * dot * nx; b.vy -= 1.8f * dot * ny
+                        if (mixing > 0f) {
+                            // The wall isn't a perfect mirror: each bounce leaves at a slightly random angle.
+                            val a = (Random.nextFloat() * 2f - 1f) * BOUNCE_SCATTER * mixing
+                            val ca = cos(a); val sa = sin(a)
+                            val vx = b.vx * ca - b.vy * sa
+                            b.vy = b.vx * sa + b.vy * ca
+                            b.vx = vx
+                        }
+                    }
                 }
             }
         }
@@ -153,6 +185,22 @@ class DrumPhysics {
         const val STEP = 1f / 60f
         const val MAX_STEPS_PER_FRAME = 4
         const val SOLVER_PASSES = 4
+
+        // Mixing feel. All speeds are in drum units per step.
+        const val JET_DEPTH = 0.2f          // the blower reaches balls below this height (0 = center, 1 = bottom)
+        const val JET_HALF_WIDTH = 95f      // half the width of the strong jet
+        const val JET_SWEEP = 150f          // how far the jet wanders from the center
+        const val JET_SWEEP_RATE = 1.7f     // how fast it wanders
+        const val JET_LIFT = 1.8f
+        const val JET_LIFT_EXTRA = 2.4f
+        const val SIDE_LIFT = 0.15f         // weak lift outside the jet, about the same as gravity
+        const val SIDE_LIFT_EXTRA = 0.6f
+        const val GUST_CHANCE = 0.03f       // chance per ball per step of a random knock
+        const val GUST_MIN = 3f
+        const val GUST_EXTRA = 5f
+        const val SWIRL = 0.3f
+        const val SWIRL_RATE = 0.5f
+        const val BOUNCE_SCATTER = 0.45f    // radians, about 26 degrees either way
         /** 6 seconds with the blower off. */
         const val SETTLE_STEPS = 360
     }
