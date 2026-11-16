@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -34,7 +35,10 @@ class AppPrefs(private val context: Context) {
 
     suspend fun saveCombo(combo: Combo) = context.dataStore.edit { p ->
         val list = p[combosKey]?.let { runCatching { json.decodeFromString<List<Combo>>(it) }.getOrNull() } ?: emptyList()
-        p[combosKey] = json.encodeToString(listOf(combo) + list.filter { it.id != combo.id })
+        // An edited combo stays where it was; a new one goes on top.
+        p[combosKey] = json.encodeToString(
+            if (list.any { it.id == combo.id }) list.map { if (it.id == combo.id) combo else it } else listOf(combo) + list
+        )
     }
 
     suspend fun deleteCombo(id: Long) = context.dataStore.edit { p ->
@@ -49,6 +53,8 @@ class AppPrefs(private val context: Context) {
     private val languageKey = stringPreferencesKey("language")
     private val onboardedKey = booleanPreferencesKey("onboarded")
     private val simTipKey = booleanPreferencesKey("sim_tip_seen")
+    private val drawsDoneKey = androidx.datastore.preferences.core.intPreferencesKey("draws_done")
+    private val reviewAskedKey = booleanPreferencesKey("review_asked")
 
     /** Chosen language; until the user picks one, follows the phone (Filipino → Tagalog). */
     val language: Flow<Language> = context.dataStore.data.map { p ->
@@ -61,13 +67,40 @@ class AppPrefs(private val context: Context) {
     suspend fun setLanguage(lang: Language) = context.dataStore.edit { it[languageKey] = lang.name }
     suspend fun setOnboarded() = context.dataStore.edit { it[onboardedKey] = true }
     suspend fun setSimTipSeen() = context.dataStore.edit { it[simTipKey] = true }
-}
 
-enum class Language {
-    EN, TL;
+    // ---- Result alerts ----
+    private val alertsEnabledKey = booleanPreferencesKey("alerts_enabled")
+    private val alertGamesKey = stringSetPreferencesKey("alert_games")
+    private val alertPromptDoneKey = booleanPreferencesKey("alert_prompt_done")
+    private val seenDrawsKey = stringSetPreferencesKey("seen_draws")
 
-    companion object {
-        fun fromPhone(): Language =
-            if (java.util.Locale.getDefault().language in setOf("fil", "tl")) TL else EN
+    val alertsEnabled: Flow<Boolean> = context.dataStore.data.map { it[alertsEnabledKey] ?: false }
+    val alertGames: Flow<Set<String>> = context.dataStore.data.map { it[alertGamesKey] ?: DEFAULT_ALERT_GAMES }
+    /** True once the user answered the "turn on alerts?" card, either way. */
+    val alertPromptDone: Flow<Boolean> = context.dataStore.data.map { it[alertPromptDoneKey] ?: false }
+    /** Draws this phone already knows about; null until the first results are loaded. */
+    val seenDraws: Flow<Set<String>?> = context.dataStore.data.map { it[seenDrawsKey] }
+
+    suspend fun setAlertsEnabled(on: Boolean) = context.dataStore.edit {
+        it[alertsEnabledKey] = on
+        it[alertPromptDoneKey] = true
+    }
+    suspend fun setAlertGames(games: Set<String>) = context.dataStore.edit { it[alertGamesKey] = games }
+    suspend fun setAlertPromptDone() = context.dataStore.edit { it[alertPromptDoneKey] = true }
+    suspend fun setSeenDraws(keys: Set<String>) = context.dataStore.edit { it[seenDrawsKey] = keys }
+
+    /** Counts finished draws. Returns true exactly once, when it's time to ask for a review. */
+    suspend fun recordDrawAndCheckReview(askAfter: Int): Boolean {
+        var ask = false
+        context.dataStore.edit { p ->
+            val done = (p[drawsDoneKey] ?: 0) + 1
+            p[drawsDoneKey] = done
+            if (done >= askAfter && p[reviewAskedKey] != true) {
+                p[reviewAskedKey] = true
+                ask = true
+            }
+        }
+        return ask
     }
 }
+

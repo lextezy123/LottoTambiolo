@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -27,6 +29,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -186,19 +190,50 @@ fun DrumIcon(color: Color) {
     }
 }
 
-/** Standard banner ad. Hidden entirely once the user buys "remove ads". */
+/**
+ * Banner ad sized to the screen width (an "adaptive" banner).
+ * Hidden entirely once the user has Tambiolo Plus.
+ */
 @Composable
 fun BannerAd() {
-    AndroidView(
-        modifier = Modifier.fillMaxWidth().height(50.dp),
-        factory = { ctx ->
-            AdView(ctx).apply {
-                setAdSize(AdSize.BANNER)
-                adUnitId = Config.BANNER_AD_UNIT_ID
-                loadAd(AdRequest.Builder().build())
+    val context = LocalContext.current
+    val widthDp = LocalConfiguration.current.screenWidthDp
+    key(widthDp) {
+        val adSize = remember { AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, widthDp) }
+        AndroidView(
+            modifier = Modifier.fillMaxWidth().height(adSize.height.dp),
+            factory = { ctx ->
+                AdView(ctx).apply {
+                    setAdSize(adSize)
+                    adUnitId = Config.BANNER_AD_UNIT_ID
+                    loadAd(AdRequest.Builder().build())
+                }
+            },
+            onRelease = { it.destroy() },
+        )
+    }
+}
+
+/** Digits of a Swertres / EZ2 / 4D / 6D result, in drawn order. */
+@Composable
+fun DigitChips(numbers: List<Int>, twoDigit: Boolean, chipSize: Dp = 40.dp) {
+    val c = Tambiolo.colors
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        numbers.forEach { n ->
+            Box(
+                Modifier.size(chipSize).background(c.chip, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (twoDigit) n.toString().padStart(2, '0') else n.toString(),
+                    fontFamily = Mono,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = if (twoDigit) 17.sp else 19.sp,
+                    color = c.ink,
+                )
             }
-        },
-    )
+        }
+    }
 }
 
 @Composable

@@ -10,3 +10,8 @@
 .cxx/
 *.jks
 *.keystore
+/app/release/
+*.aab
+*.apk
+.kotlin/
+build.log

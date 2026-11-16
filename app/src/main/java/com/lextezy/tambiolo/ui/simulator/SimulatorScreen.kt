@@ -98,20 +98,21 @@ fun SimulatorScreen(
     onPendingUsed: () -> Unit,
     showTip: Boolean,
     onTipSeen: () -> Unit,
+    onDrawFinished: () -> Unit = {},
 ) {
     val c = Tambiolo.colors
     val s = S.str
     val scope = rememberCoroutineScope()
     val scroll = rememberScrollState()
     var max by rememberSaveable { mutableIntStateOf(42) }
-    var picks by remember { mutableStateOf(listOf(3, 11, 19, 24, 33, 40)) }
+    var picks by rememberSaveable { mutableStateOf(listOf(3, 11, 19, 24, 33, 40)) }
     val drawn = remember { mutableStateListOf<Int>() }
     var phase by remember { mutableStateOf(Phase.IDLE) }
     var stats by remember { mutableStateOf<Stats?>(null) }
     var statsTop by remember { mutableIntStateOf(0) }
     var showRunInfo by remember { mutableStateOf(false) }
     var job by remember { mutableStateOf<Job?>(null) }
-    val physics = remember { DrumPhysics().apply { reset(42) } }
+    val physics = remember { DrumPhysics().apply { reset(max) } }
 
     fun resetDrum(newMax: Int) {
         job?.cancel()
@@ -173,6 +174,7 @@ fun SimulatorScreen(
             }
             physics.mixing = 0f
             phase = Phase.DONE
+            onDrawFinished()
         }
     }
 

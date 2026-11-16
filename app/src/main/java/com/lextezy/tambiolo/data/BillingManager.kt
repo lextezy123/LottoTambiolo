@@ -48,7 +48,7 @@ class BillingManager(context: Context, private val prefs: AppPrefs, private val 
         val params = QueryProductDetailsParams.newBuilder().setProductList(
             listOf(
                 QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId(Config.REMOVE_ADS_PRODUCT_ID)
+                    .setProductId(Config.PLUS_PRODUCT_ID)
                     .setProductType(BillingClient.ProductType.INAPP)
                     .build()
             )
@@ -82,7 +82,7 @@ class BillingManager(context: Context, private val prefs: AppPrefs, private val 
 
     private fun handle(purchases: List<Purchase>?) {
         val owned = purchases.orEmpty().filter {
-            it.purchaseState == Purchase.PurchaseState.PURCHASED && Config.REMOVE_ADS_PRODUCT_ID in it.products
+            it.purchaseState == Purchase.PurchaseState.PURCHASED && Config.PLUS_PRODUCT_ID in it.products
         }
         if (owned.isEmpty()) return
         scope.launch { prefs.setAdsRemoved(true) }

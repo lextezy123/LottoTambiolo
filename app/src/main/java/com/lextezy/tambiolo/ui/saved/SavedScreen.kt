@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lextezy.tambiolo.data.Combo
 import com.lextezy.tambiolo.data.Draw
+import com.lextezy.tambiolo.data.bestPastMatch
 import com.lextezy.tambiolo.data.formatDrawDate
 import com.lextezy.tambiolo.data.gameFor
 import com.lextezy.tambiolo.ui.components.BallRow
@@ -61,6 +63,7 @@ import java.security.SecureRandom
 @Composable
 fun SavedScreen(
     combos: List<Combo>,
+    draws: List<Draw>,
     latestDraw: (Int) -> Draw?,
     onSave: (Combo) -> Unit,
     onDelete: (Long) -> Unit,
@@ -69,6 +72,7 @@ fun SavedScreen(
     val c = Tambiolo.colors
     val s = S.str
     var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Combo?>(null) }
     var deleting by remember { mutableStateOf<Combo?>(null) }
 
     LazyColumn(
@@ -119,6 +123,11 @@ fun SavedScreen(
                     else s.latestMatched(game.code, formatDrawDate(draw.localDate), matched ?: 0),
                     fontSize = 13.sp, color = c.muted,
                 )
+                // Best result this combo would have had in past draws (shown from 3 matches up, the lowest prize tier).
+                val past = remember(combo, draws) { bestPastMatch(combo, draws) }
+                if (past != null && past.matched >= 3) {
+                    Text(s.bestPast(past.matched, formatDrawDate(past.date)), fontSize = 13.sp, color = c.match)
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Button(
                         onClick = { onSimulate(combo) },
@@ -129,6 +138,9 @@ fun SavedScreen(
                         DrumIcon(c.navPillInk)
                         Spacer(Modifier.width(6.dp))
                         Text(s.simulate, fontWeight = FontWeight.Bold)
+                    }
+                    IconButton(onClick = { editing = combo }) {
+                        Icon(Icons.Filled.Edit, contentDescription = s.editLabel(combo.name), tint = c.muted)
                     }
                     IconButton(onClick = { deleting = combo }) {
                         Icon(Icons.Filled.Delete, contentDescription = s.deleteLabel(combo.name), tint = c.muted)
@@ -142,7 +154,10 @@ fun SavedScreen(
     }
 
     if (adding) {
-        AddComboSheet(onDismiss = { adding = false }, onSave = { onSave(it); adding = false })
+        ComboSheet(existing = null, onDismiss = { adding = false }, onSave = { onSave(it); adding = false })
+    }
+    editing?.let { combo ->
+        ComboSheet(existing = combo, onDismiss = { editing = null }, onSave = { onSave(it); editing = null })
     }
     deleting?.let { combo ->
         AlertDialog(
@@ -157,20 +172,20 @@ fun SavedScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddComboSheet(onDismiss: () -> Unit, onSave: (Combo) -> Unit) {
+private fun ComboSheet(existing: Combo?, onDismiss: () -> Unit, onSave: (Combo) -> Unit) {
     val c = Tambiolo.colors
     val s = S.str
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var name by remember { mutableStateOf("") }
-    var max by remember { mutableIntStateOf(42) }
-    var picks by remember { mutableStateOf(listOf<Int>()) }
+    var name by remember { mutableStateOf(existing?.name ?: "") }
+    var max by remember { mutableIntStateOf(existing?.max ?: 42) }
+    var picks by remember { mutableStateOf(existing?.numbers?.sorted() ?: listOf()) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.bg) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(s.newCombo, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = c.ink)
+            Text(if (existing == null) s.newCombo else s.editCombo, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = c.ink)
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it.take(30) },
@@ -201,7 +216,7 @@ private fun AddComboSheet(onDismiss: () -> Unit, onSave: (Combo) -> Unit) {
                 ) { Text(s.quickPick, color = c.ink, fontWeight = FontWeight.SemiBold) }
                 Button(
                     onClick = {
-                        onSave(Combo(System.currentTimeMillis(), name.trim().ifEmpty { s.defaultComboName }, max, picks))
+                        onSave(Combo(existing?.id ?: System.currentTimeMillis(), name.trim().ifEmpty { s.defaultComboName }, max, picks))
                     },
                     enabled = picks.size == 6,
                     modifier = Modifier.weight(1f).height(52.dp),

@@ -15,10 +15,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -26,6 +32,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -40,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,9 +58,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lextezy.tambiolo.TambioloApplication
+import com.lextezy.tambiolo.data.AdsConsent
+import com.lextezy.tambiolo.data.AppLinks
 import com.lextezy.tambiolo.data.Combo
 import com.lextezy.tambiolo.data.Language
 import com.lextezy.tambiolo.data.ThemeMode
+import com.lextezy.tambiolo.ui.alerts.AlertsSettings
+import com.lextezy.tambiolo.ui.alerts.rememberEnableAlerts
 import com.lextezy.tambiolo.ui.components.BannerAd
 import com.lextezy.tambiolo.ui.components.DrumIcon
 import com.lextezy.tambiolo.ui.i18n.S
@@ -60,11 +72,13 @@ import com.lextezy.tambiolo.ui.results.ResultsScreen
 import com.lextezy.tambiolo.ui.results.ResultsViewModel
 import com.lextezy.tambiolo.ui.saved.SavedScreen
 import com.lextezy.tambiolo.ui.simulator.SimulatorScreen
+import com.lextezy.tambiolo.ui.stats.StatsIcon
+import com.lextezy.tambiolo.ui.stats.StatsScreen
 import com.lextezy.tambiolo.ui.theme.Tambiolo
 import com.lextezy.tambiolo.ui.welcome.WelcomeScreen
 import kotlinx.coroutines.launch
 
-private enum class Tab { RESULTS, SIMULATOR, SAVED }
+private enum class Tab { RESULTS, STATS, SIMULATOR, SAVED }
 
 @Composable
 fun TambioloAppUi(app: TambioloApplication) {
@@ -95,28 +109,45 @@ private fun MainTabs(app: TambioloApplication) {
     val combos by app.prefs.combos.collectAsState(initial = emptyList())
     val adsRemoved by app.prefs.adsRemoved.collectAsState(initial = true) // assume removed until known, so no ad flashes
     val simTipSeen by app.prefs.simTipSeen.collectAsState(initial = true)
+    // Plus content must never flash for free users while the saved value loads, so this one starts as false.
+    val hasPlus by app.prefs.adsRemoved.collectAsState(initial = false)
+    val adsReady by AdsConsent.adsReady.collectAsState()
+    val alertsEnabled by app.prefs.alertsEnabled.collectAsState(initial = true)
+    val alertPromptDone by app.prefs.alertPromptDone.collectAsState(initial = true)
+    val enableAlerts = rememberEnableAlerts(app)
+    // Keeps each tab's choices (game, filters, scroll position) while the user visits other tabs.
+    val tabStates = rememberSaveableStateHolder()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var pending by remember { mutableStateOf<Combo?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val plusPrice by app.billing.price.collectAsState()
+    val getPlus: () -> Unit = {
+        val activity = context as? Activity
+        if (activity == null || !app.billing.buy(activity)) {
+            Toast.makeText(context, s.purchaseUnavailable, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Scaffold(
         containerColor = c.bg,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             Column(Modifier.background(c.navBar)) {
-                if (!adsRemoved) BannerAd()
+                if (!adsRemoved && adsReady) BannerAd()
                 HorizontalDivider(color = c.line)
                 NavigationBar(containerColor = c.navBar, tonalElevation = 0.dp) {
                     Tab.entries.forEachIndexed { i, t ->
                         val selected = tab == i
                         val tint = if (selected) c.navPillInk else c.muted
-                        val label = when (t) { Tab.RESULTS -> s.tabResults; Tab.SIMULATOR -> s.tabSimulator; Tab.SAVED -> s.tabSaved }
+                        val label = when (t) { Tab.RESULTS -> s.tabResults; Tab.STATS -> s.tabStats; Tab.SIMULATOR -> s.tabSimulator; Tab.SAVED -> s.tabSaved }
                         NavigationBarItem(
                             selected = selected,
                             onClick = { tab = i },
                             icon = {
                                 when (t) {
                                     Tab.RESULTS -> Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, tint = tint)
+                                    Tab.STATS -> StatsIcon(tint)
                                     Tab.SIMULATOR -> DrumIcon(tint)
                                     Tab.SAVED -> Icon(Icons.Filled.Star, contentDescription = null, tint = tint)
                                 }
@@ -134,21 +165,49 @@ private fun MainTabs(app: TambioloApplication) {
         },
     ) { inner ->
         Box(Modifier.fillMaxSize().padding(inner).statusBarsPadding()) {
-            when (Tab.entries[tab]) {
-                Tab.RESULTS -> ResultsScreen(results, onRefresh = resultsVm::refresh, onOpenSettings = { showSettings = true })
+            val currentTab = Tab.entries[tab]
+            tabStates.SaveableStateProvider(currentTab.name) {
+            when (currentTab) {
+                Tab.RESULTS -> ResultsScreen(
+                    results,
+                    onRefresh = resultsVm::refresh,
+                    onOpenSettings = { showSettings = true },
+                    showAlertsCard = !alertsEnabled && !alertPromptDone,
+                    onEnableAlerts = enableAlerts,
+                    onDismissAlerts = { scope.launch { app.prefs.setAlertPromptDone() } },
+                )
+                Tab.STATS -> StatsScreen(
+                    draws = results.draws,
+                    hasPlus = hasPlus,
+                    plusPrice = plusPrice,
+                    onGetPlus = getPlus,
+                    onTryInSimulator = { max, numbers ->
+                        pending = Combo(0L, s.mostDrawn, max, numbers)
+                        tab = Tab.SIMULATOR.ordinal
+                    },
+                )
                 Tab.SIMULATOR -> SimulatorScreen(
                     pending = pending,
                     onPendingUsed = { pending = null },
                     showTip = !simTipSeen,
                     onTipSeen = { scope.launch { app.prefs.setSimTipSeen() } },
+                    onDrawFinished = {
+                        scope.launch {
+                            if (app.prefs.recordDrawAndCheckReview(AppLinks.REVIEW_AFTER_DRAWS)) {
+                                (context as? Activity)?.let { AppLinks.askForReview(it) }
+                            }
+                        }
+                    },
                 )
                 Tab.SAVED -> SavedScreen(
                     combos = combos,
+                    draws = results.draws,
                     latestDraw = { max -> results.latest(max) },
                     onSave = { combo -> scope.launch { app.prefs.saveCombo(combo) } },
                     onDelete = { id -> scope.launch { app.prefs.deleteCombo(id) } },
                     onSimulate = { combo -> pending = combo; tab = Tab.SIMULATOR.ordinal },
                 )
+            }
             }
         }
     }
@@ -187,10 +246,13 @@ private fun SettingsSheet(app: TambioloApplication, adsRemoved: Boolean, onDismi
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.bg) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 16.dp),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(s.settings, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = c.ink)
+
+            AlertsSettings(app)
+            HorizontalDivider(color = c.line)
 
             Text(s.language, fontWeight = FontWeight.Bold, color = c.ink)
             val langs = listOf(Language.EN, Language.TL)
@@ -222,6 +284,33 @@ private fun SettingsSheet(app: TambioloApplication, adsRemoved: Boolean, onDismi
                     Text(s.removeAds(price), fontWeight = FontWeight.Bold)
                 }
                 TextButton(onClick = { app.billing.restore() }) { Text(s.restorePurchase, color = c.ink) }
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { AppLinks.openStorePage(context) },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(Icons.Filled.Star, contentDescription = null, tint = c.ink, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(s.rateApp, color = c.ink, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+                OutlinedButton(
+                    onClick = { AppLinks.share(context, s.shareMessage(AppLinks.storeUrl(context))) },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(Icons.Filled.Share, contentDescription = null, tint = c.ink, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(s.shareApp, color = c.ink, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+
+            if (!adsRemoved && AdsConsent.privacyOptionsRequired(context)) {
+                TextButton(onClick = { (context as? Activity)?.let { AdsConsent.showPrivacyOptions(it) } }) {
+                    Text(s.adPrivacy, color = c.ink)
+                }
             }
 
             HorizontalDivider(color = c.line)

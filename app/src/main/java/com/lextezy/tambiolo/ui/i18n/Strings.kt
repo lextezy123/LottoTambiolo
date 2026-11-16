@@ -58,6 +58,8 @@ abstract class Strings {
     // Saved
     abstract val savedTitle: String
     abstract val newCombo: String
+    abstract val editCombo: String
+    abstract fun editLabel(name: String): String
     abstract val emptyTitle: String
     abstract val emptyBody: String
     abstract fun noResultsLoaded(code: String): String
@@ -93,6 +95,68 @@ abstract class Strings {
     abstract val skip: String
     abstract val next: String
     abstract val getStarted: String
+
+    // Schedule
+    abstract fun nextDraw(label: String): String
+    abstract val tonight9pm: String
+    abstract val tomorrow: String
+    /** Short weekday names, Monday first. */
+    abstract val dayShort: List<String>
+    abstract val drawSchedule: String
+    abstract val scheduleNote: String
+
+    // Stats
+    abstract val tabStats: String
+    abstract val statsTitle: String
+    abstract val statsIntro: String
+    abstract fun periodLabel(p: com.lextezy.tambiolo.data.StatsPeriod): String
+    abstract fun basedOnDraws(n: Int, code: String): String
+    abstract val noStatsYet: String
+    abstract val mostDrawn: String
+    abstract val leastDrawn: String
+    abstract val tryInSimulator: String
+    abstract fun timesShort(n: Int): String
+    abstract val allNumbers: String
+    abstract val statsNote: String
+
+    // Tambiolo Plus
+    abstract val plusName: String
+    abstract val plusPitch: String
+    abstract fun getPlus(price: String?): String
+
+    // Rate & share
+    abstract val rateApp: String
+    abstract val shareApp: String
+    abstract fun shareMessage(link: String): String
+
+    // Result alerts
+    abstract val alertChannel: String
+    abstract val alertTitle: String
+    abstract fun alertTitleOne(name: String): String
+    abstract fun alertComboMatched(name: String, matched: Int): String
+    abstract val alertsCardTitle: String
+    abstract val alertsCardBody: String
+    abstract val turnOn: String
+    abstract val notNow: String
+    abstract val alertsSetting: String
+    abstract val alertsNote: String
+    abstract val alertsGames: String
+    abstract val alertsBlocked: String
+    abstract val adPrivacy: String
+
+    // Digit games
+    abstract val sectionLotto: String
+    abstract val sectionDigits: String
+    /** "Today, 5 PM" or "Tonight, 9 PM". */
+    abstract fun laterToday(time: String, evening: Boolean): String
+    abstract val digitScheduleDaily: String
+    abstract val prize: String
+
+    // Hot numbers and combo history
+    abstract val hotSub: String
+    abstract val coldSub: String
+    abstract val hotLocked: String
+    abstract fun bestPast(matched: Int, date: String): String
 }
 
 object EnStrings : Strings() {
@@ -143,6 +207,8 @@ object EnStrings : Strings() {
 
     override val savedTitle = "Saved combos"
     override val newCombo = "New combo"
+    override val editCombo = "Edit combo"
+    override fun editLabel(name: String) = "Edit $name"
     override val emptyTitle = "No saved combos yet"
     override val emptyBody = "Tap New combo to save numbers you pick often, like birthdays. " +
         "You can then simulate them or check them against the latest draw."
@@ -165,9 +231,9 @@ object EnStrings : Strings() {
     override val themeLight = "Light"
     override val themeDark = "Dark"
     override val language = "Language"
-    override val ads = "Ads"
-    override val adsRemoved = "Ads are removed. Salamat for supporting Tambiolo!"
-    override fun removeAds(price: String?) = if (price != null) "Remove ads · $price one time" else "Remove ads"
+    override val ads = "Tambiolo Plus"
+    override val adsRemoved = "You have Tambiolo Plus: no ads and full stats. Salamat for supporting Tambiolo!"
+    override fun removeAds(price: String?) = if (price != null) "Get Plus: no ads + full stats · $price" else "Get Plus: no ads + full stats"
     override val purchaseUnavailable = "Purchase isn't available right now. Try again later."
     override val restorePurchase = "Restore purchase"
     override val about = "Tambiolo is an unofficial app and is not affiliated with PCSO. Results are for reference only; " +
@@ -188,6 +254,64 @@ object EnStrings : Strings() {
     override val skip = "Skip"
     override val next = "Next"
     override val getStarted = "Get started"
+
+    override fun nextDraw(label: String) = "Next draw: $label"
+    override val tonight9pm = "Tonight, 9 PM"
+    override val tomorrow = "Tomorrow"
+    override val dayShort = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    override val drawSchedule = "Draw schedule"
+    override val scheduleNote = "All draws are at 9 PM. Results usually show up in the app later that night or by the next morning."
+
+    override val tabStats = "Stats"
+    override val statsTitle = "Number stats"
+    override val statsIntro = "See which numbers came up most often in past draws."
+    override fun periodLabel(p: com.lextezy.tambiolo.data.StatsPeriod) = when (p) {
+        com.lextezy.tambiolo.data.StatsPeriod.WEEK -> "Week"
+        com.lextezy.tambiolo.data.StatsPeriod.MONTH -> "Month"
+        com.lextezy.tambiolo.data.StatsPeriod.YEAR -> "Year"
+        com.lextezy.tambiolo.data.StatsPeriod.ALL -> "All"
+    }
+    override fun basedOnDraws(n: Int, code: String) = "Based on $n $code draw${if (n == 1) "" else "s"}"
+    override val noStatsYet = "No draws in this period yet."
+    override val mostDrawn = "Hot numbers"
+    override val leastDrawn = "Cold numbers"
+    override val tryInSimulator = "Use these numbers in the simulator"
+    override fun timesShort(n: Int) = "$n×"
+    override val allNumbers = "All numbers"
+    override val statsNote = "These show past draws only. Every draw is random, so a number that came up often is no more likely to come up next time."
+
+    override val plusName = "Tambiolo Plus"
+    override val plusPitch = "See all 6 hot numbers, cold numbers, Week, Year and All-time stats and the full chart of every number. Removes all ads too. One-time purchase."
+    override fun getPlus(price: String?) = if (price != null) "Get Plus · $price" else "Get Plus"
+
+    override val rateApp = "Rate Tambiolo"
+    override val shareApp = "Share with friends"
+    override fun shareMessage(link: String) = "Check out Lotto Tambiolo: PH lotto results plus a fun draw simulator. Just for fun, no betting. $link"
+
+    override val alertChannel = "Draw results"
+    override val alertTitle = "Lotto results are out"
+    override fun alertTitleOne(name: String) = "$name results are out"
+    override fun alertComboMatched(name: String, matched: Int) = "Your \"$name\" matched $matched of 6"
+    override val alertsCardTitle = "Get an alert when results are out"
+    override val alertsCardBody = "One notification after each draw, with the winning numbers."
+    override val turnOn = "Turn on"
+    override val notNow = "Not now"
+    override val alertsSetting = "Result alerts"
+    override val alertsNote = "Results usually arrive late at night or by morning. Alerts stay silent from 10 PM to 7 AM."
+    override val alertsGames = "Alert me for"
+    override val alertsBlocked = "Notifications are blocked for Tambiolo. Allow them in your phone's settings."
+    override val adPrivacy = "Ad privacy choices"
+
+    override val sectionLotto = "Lotto"
+    override val sectionDigits = "Swertres & more"
+    override fun laterToday(time: String, evening: Boolean) = if (evening) "Tonight, $time" else "Today, $time"
+    override val digitScheduleDaily = "Daily at 2 PM, 5 PM and 9 PM"
+    override val prize = "Prize "
+
+    override val hotSub = "Drawn most often in this period"
+    override val coldSub = "Drawn least often in this period"
+    override val hotLocked = "3 of 6 shown. Get Plus to see all 6."
+    override fun bestPast(matched: Int, date: String) = "Best past result: matched $matched of 6 on $date"
 }
 
 object TlStrings : Strings() {
@@ -238,6 +362,8 @@ object TlStrings : Strings() {
 
     override val savedTitle = "Naka-save na combo"
     override val newCombo = "Bagong combo"
+    override val editCombo = "I-edit ang combo"
+    override fun editLabel(name: String) = "I-edit ang $name"
     override val emptyTitle = "Wala ka pang naka-save na combo"
     override val emptyBody = "I-tap ang Bagong combo para i-save ang mga numerong madalas mong piliin, gaya ng birthdays. " +
         "Puwede mo silang i-simulate o itapat sa pinakabagong draw."
@@ -260,9 +386,9 @@ object TlStrings : Strings() {
     override val themeLight = "Light"
     override val themeDark = "Dark"
     override val language = "Wika"
-    override val ads = "Ads"
-    override val adsRemoved = "Tinanggal na ang ads. Salamat sa pagsuporta sa Tambiolo!"
-    override fun removeAds(price: String?) = if (price != null) "Tanggalin ang ads · $price isang beses" else "Tanggalin ang ads"
+    override val ads = "Tambiolo Plus"
+    override val adsRemoved = "May Tambiolo Plus ka na: walang ads at buong stats. Salamat sa pagsuporta sa Tambiolo!"
+    override fun removeAds(price: String?) = if (price != null) "Kunin ang Plus: walang ads + buong stats · $price" else "Kunin ang Plus: walang ads + buong stats"
     override val purchaseUnavailable = "Hindi pa puwedeng bumili ngayon. Subukan ulit mamaya."
     override val restorePurchase = "Ibalik ang nabili"
     override val about = "Hindi opisyal na app ang Tambiolo at hindi konektado sa PCSO. Pang-reference lang ang resulta; " +
@@ -283,6 +409,64 @@ object TlStrings : Strings() {
     override val skip = "Laktawan"
     override val next = "Susunod"
     override val getStarted = "Simulan"
+
+    override fun nextDraw(label: String) = "Susunod na draw: $label"
+    override val tonight9pm = "Mamayang 9 PM"
+    override val tomorrow = "Bukas"
+    override val dayShort = listOf("Lun", "Mar", "Miy", "Huw", "Biy", "Sab", "Lin")
+    override val drawSchedule = "Iskedyul ng draw"
+    override val scheduleNote = "Lahat ng draw ay 9 PM. Karaniwang lumalabas ang resulta sa app mamayang gabi o kinabukasan ng umaga."
+
+    override val tabStats = "Stats"
+    override val statsTitle = "Stats ng numero"
+    override val statsIntro = "Tingnan kung aling mga numero ang pinakamadalas lumabas sa mga nakaraang draw."
+    override fun periodLabel(p: com.lextezy.tambiolo.data.StatsPeriod) = when (p) {
+        com.lextezy.tambiolo.data.StatsPeriod.WEEK -> "Linggo"
+        com.lextezy.tambiolo.data.StatsPeriod.MONTH -> "Buwan"
+        com.lextezy.tambiolo.data.StatsPeriod.YEAR -> "Taon"
+        com.lextezy.tambiolo.data.StatsPeriod.ALL -> "Lahat"
+    }
+    override fun basedOnDraws(n: Int, code: String) = "Batay sa $n na $code draw"
+    override val noStatsYet = "Wala pang draw sa panahong ito."
+    override val mostDrawn = "Hot numbers"
+    override val leastDrawn = "Cold numbers"
+    override val tryInSimulator = "Gamitin ang mga numerong ito sa simulator"
+    override fun timesShort(n: Int) = "$n×"
+    override val allNumbers = "Lahat ng numero"
+    override val statsNote = "Mga nakaraang draw lang ang ipinapakita nito. Random ang bawat draw, kaya hindi mas malamang lumabas ulit ang numerong madalas lumabas."
+
+    override val plusName = "Tambiolo Plus"
+    override val plusPitch = "Makita ang lahat ng 6 na hot numbers, cold numbers, stats para sa Linggo, Taon at Lahat, at ang buong chart ng bawat numero. Tanggal din ang lahat ng ads. Isang bayad lang."
+    override fun getPlus(price: String?) = if (price != null) "Kunin ang Plus · $price" else "Kunin ang Plus"
+
+    override val rateApp = "I-rate ang Tambiolo"
+    override val shareApp = "Ibahagi sa kaibigan"
+    override fun shareMessage(link: String) = "Subukan ang Lotto Tambiolo: resulta ng PH lotto at masayang draw simulator. Laro lang, walang taya. $link"
+
+    override val alertChannel = "Resulta ng draw"
+    override val alertTitle = "Lumabas na ang resulta ng lotto"
+    override fun alertTitleOne(name: String) = "Lumabas na ang resulta ng $name"
+    override fun alertComboMatched(name: String, matched: Int) = "Tumama ng $matched sa 6 ang \"$name\" mo"
+    override val alertsCardTitle = "Magpa-alert kapag lumabas na ang resulta"
+    override val alertsCardBody = "Isang notification pagkatapos ng bawat draw, kasama ang mga nanalong numero."
+    override val turnOn = "I-on"
+    override val notNow = "Hindi muna"
+    override val alertsSetting = "Alert sa resulta"
+    override val alertsNote = "Karaniwang dumarating ang resulta sa gabi o kinaumagahan. Tahimik ang alert mula 10 PM hanggang 7 AM."
+    override val alertsGames = "I-alert ako para sa"
+    override val alertsBlocked = "Naka-block ang notifications ng Tambiolo. Payagan ito sa settings ng phone mo."
+    override val adPrivacy = "Mga pagpipilian sa ad privacy"
+
+    override val sectionLotto = "Lotto"
+    override val sectionDigits = "Swertres atbp."
+    override fun laterToday(time: String, evening: Boolean) = "Mamayang $time"
+    override val digitScheduleDaily = "Araw-araw, 2 PM, 5 PM at 9 PM"
+    override val prize = "Premyo "
+
+    override val hotSub = "Pinakamadalas lumabas sa panahong ito"
+    override val coldSub = "Pinakabihirang lumabas sa panahong ito"
+    override val hotLocked = "3 sa 6 ang ipinapakita. Kunin ang Plus para makita lahat ng 6."
+    override fun bestPast(matched: Int, date: String) = "Pinakamagandang resulta noon: $matched sa 6 ang tumama noong $date"
 }
 
 fun stringsFor(lang: Language): Strings = if (lang == Language.TL) TlStrings else EnStrings

@@ -13,8 +13,8 @@ android {
         applicationId = "com.lextezy.tambiolo"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0"
+        versionCode = 6
+        versionName = "1.4"
     }
 
     buildTypes {
@@ -39,6 +39,9 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
+    // Ads pulls in an old fragment library that Play flags; this forces a current one.
+    implementation(libs.androidx.fragment.ktx)
+    implementation(libs.play.review)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(platform(libs.androidx.compose.bom))
@@ -50,5 +53,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.play.services.ads)
     implementation(libs.billing.ktx)
+    implementation(libs.ump)
+    implementation(libs.androidx.work.runtime.ktx)
+    testImplementation(libs.junit)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
